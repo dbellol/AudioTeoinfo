@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog  # Para abrir el diálogo de selección de archivos
+from tkinter import filedialog, messagebox
 from moduloCargarAudio.cargar_audio import cargar_audio
 from moduloCargarAudio.grabar_audio import grabar_audio, detener_grabacion
 from moduloSeleccionFiltros.procesador_audio import aplicar_filtro, guardar_audio
@@ -71,6 +71,7 @@ def iniciar_interfaz():
             return
 
         filtro = filtro_var.get()
+        ambiente = ambiente_var.get() if filtro == "Ambientes" else None
 
         # Validar la frecuencia de corte para Pasaaltos y Pasabajos
         if filtro in ["Pasaaltos", "Pasabajos"]:
@@ -85,7 +86,7 @@ def iniciar_interfaz():
         else:
             cutoff = None
 
-        resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff)
+        resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff, ambiente)
         if resultado is not None:
             guardar_audio(resultado, audio_data["sr"])
             audio_data["audio"] = resultado  # Guardamos el audio filtrado en memoria
@@ -108,9 +109,15 @@ def iniciar_interfaz():
     btn_detener.pack(pady=10)
 
     filtro_var = tk.StringVar(value="Selecciona un filtro")
-    opciones = ["Pasaaltos", "Pasabajos", "Eco", "Reverberación"]
+    opciones = ["Pasaaltos", "Pasabajos", "Eco", "Reverberación", "Ambientes"]
     menu_filtros = tk.OptionMenu(root, filtro_var, *opciones)
     menu_filtros.pack()
+
+    # Menú de selección de ambientes específicos
+    ambiente_var = tk.StringVar(value="Selecciona un ambiente")
+    opciones_ambientes = ["Sala pequeña", "Iglesia", "Estadio", "Cueva"]
+    menu_ambientes = tk.OptionMenu(root, ambiente_var, *opciones_ambientes)
+    menu_ambientes.pack()
 
     entry_frec = tk.Entry(root)
     entry_frec.pack()
