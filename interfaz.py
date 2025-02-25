@@ -1,9 +1,10 @@
 import tkinter as tk
+from tkinter import filedialog  # Para abrir el diálogo de selección de archivos
 from moduloCargarAudio.cargar_audio import cargar_audio
 from moduloCargarAudio.grabar_audio import grabar_audio, detener_grabacion
 from moduloSeleccionFiltros.procesador_audio import aplicar_filtro, guardar_audio
 import os
-import soundfile as sf  # Importamos soundfile para leer el archivo de audio grabado
+import soundfile as sf  # Para leer el archivo de audio grabado
 
 def iniciar_interfaz():
     """Crea la interfaz gráfica de la aplicación."""
@@ -28,14 +29,20 @@ def iniciar_interfaz():
 
     def cargar_audio_ui():
         """Carga un audio desde un archivo seleccionado manualmente."""
-        resultado = cargar_audio(actualizar_estado)  # Intentamos cargar el audio
-
-        if resultado is None:  # Si no se seleccionó archivo, no hacer nada
+        filepath = filedialog.askopenfilename(
+            title="Seleccionar archivo de audio",
+            filetypes=[("Archivos de audio", "*.wav *.mp3 *.ogg")]
+        )
+        if not filepath:  # Si no se seleccionó un archivo
             actualizar_estado("⚠ No se seleccionó un archivo.", "red")
             return
 
-        audio_data["audio"], audio_data["sr"] = resultado  # Guardamos en el diccionario
-        actualizar_estado("✅ Audio cargado con éxito 🎵", "green")
+        try:
+            audio, sr = sf.read(filepath)
+            audio_data["audio"], audio_data["sr"] = audio, sr
+            actualizar_estado(f"✅ Audio cargado con éxito: {os.path.basename(filepath)} 🎵", "green")
+        except Exception as e:
+            actualizar_estado(f"⚠ Error al cargar el archivo: {str(e)}", "red")
 
     def grabar_audio_ui():
         """Inicia la grabación del audio sin abrir la ventana de carga."""
@@ -65,11 +72,18 @@ def iniciar_interfaz():
 
         filtro = filtro_var.get()
 
-        try:
-            cutoff = int(entry_frec.get()) if filtro in ["Pasaaltos", "Pasabajos"] else None
-        except ValueError:
-            actualizar_estado("⚠ Ingresa una frecuencia de corte válida.", "red")
-            return
+        # Validar la frecuencia de corte para Pasaaltos y Pasabajos
+        if filtro in ["Pasaaltos", "Pasabajos"]:
+            try:
+                cutoff = int(entry_frec.get())
+                if cutoff < 20 or cutoff > 20000:  # Rango válido para frecuencias de audio
+                    actualizar_estado("⚠ La frecuencia debe estar entre 20 Hz y 20,000 Hz.", "red")
+                    return
+            except ValueError:
+                actualizar_estado("⚠ Ingresa una frecuencia de corte válida.", "red")
+                return
+        else:
+            cutoff = None
 
         resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff)
         if resultado is not None:
