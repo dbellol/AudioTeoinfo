@@ -1,40 +1,40 @@
-import os
 import numpy as np
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
+import scipy.signal as signal
 import soundfile as sf
-from scipy.signal import butter, filtfilt, convolve
-
-# Definir la ruta base donde están los audios
-BASE_DIR = r"F:\FiltrosTeoinfo"
-archivo_audio = os.path.join(BASE_DIR, "grabacion.wav")
-
-# Verificar que el archivo existe antes de cargarlo
-if os.path.exists(archivo_audio):
-    audio, sr = librosa.load(archivo_audio, sr=None)
-    print("Archivo cargado correctamente.")
-else:
-    raise FileNotFoundError(f"Error: No se encontró el archivo en {archivo_audio}")
-
-# ============================
-# FUNCIONES PARA FILTRADO Y EFECTOS
-# ============================
+import librosa
+from tkinter import messagebox
+import tempfile
 
 def butter_filter(data, cutoff, sr, btype, order=4):
-    """ Aplica un filtro Butterworth a la señal de audio. """
+    """Aplica un filtro pasaaltos o pasabajos usando Butterworth."""
     nyquist = 0.5 * sr
     normal_cutoff = cutoff / nyquist
-    b, a = butter(order, normal_cutoff, btype=btype, analog=False)
-    return filtfilt(b, a, data)
+    b, a = signal.butter(order, normal_cutoff, btype=btype, analog=False)
+    return signal.filtfilt(b, a, data)
 
-def aplicar_eco(audio, sr):
-    """ Aplica un efecto de eco a la señal de audio. """
-    eco_kernel = np.zeros(sr)
-    eco_kernel[::sr//2] = 0.6  # Introducimos retardos cada 0.5s
-    return convolve(audio, eco_kernel, mode="full")
+def aplicar_eco(audio, sr, intensidad=0.5, retardo_s=0.3, repeticiones=5):
+    """Aplica un efecto de eco con retardos múltiples, sin salirse del rango permitido."""
+    retardo = int(sr * retardo_s)  # Convertir retardo a muestras
+    kernel_size = retardo * repeticiones  # Tamaño del kernel de eco
 
-def aplicar_reverberacion(audio, sr):
-    """ Aplica un efecto de reverberación a la señal de audio. """
-    reverb_kernel = np.random.uniform(-0.5, 0.5, sr)
-    return convolve(audio, reverb_kernel, mode="full")
+    # Asegurar que el tamaño del kernel no supere el tamaño del audio
+    kernel = np.zeros(min(len(audio), kernel_size))
+
+    for i in range(1, repeticiones + 1):
+        idx = i * retardo
+        if idx < len(kernel):  # ✅ Evita acceder a un índice fuera de rango
+            kernel[idx] = intensidad / (i + 1)  # Atenuar con cada repetición
+
+    audio_eco = np.convolve(audio, kernel, mode="full")
+    return audio_eco[:len(audio)]  # Ajustar al tamaño original
+
+def aplicar_reverberacion(audio, sr, intensidad=0.5):
+    """Aplica reverberación generando un kernel de respuesta al impulso."""
+    kernel_size = sr // 2  # Tamaño de la IR sintética (~0.5s de reverb)
+    reverb_kernel = np.exp(-np.linspace(0, intensidad, kernel_size))  # Decaimiento exponencial
+
+    # Añadir pequeñas reflexiones aleatorias
+    reverb_kernel += np.random.uniform(-0.05, 0.05, kernel_size) * intensidad
+    
+    audio_reverb = np.convolve(audio, reverb_kernel, mode="full")
+    return audio_reverb[:len(audio)]  # Ajustar al tamaño original

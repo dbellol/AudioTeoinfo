@@ -5,7 +5,7 @@ import librosa.display
 import matplotlib.pyplot as plt
 import soundfile as sf
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, Scale
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from moduloCargarAudio.cargar_audio import cargar_audio
 from moduloCargarAudio.grabar_audio import grabar_audio, detener_grabacion
@@ -39,8 +39,8 @@ def iniciar_interfaz():
             audio, sr = librosa.load(filepath, sr=None)
             audio_data["audio"], audio_data["sr"] = audio, sr
             actualizar_estado(f"✅ Audio cargado: {os.path.basename(filepath)}", "green")
-            mostrar_onda(audio, sr, "Forma de Onda - Audio Original")  # 📊 Mostrar onda tras cargar
-            mostrar_espectrograma(audio, sr, "Espectrograma - Audio Original")  # 📊 Mostrar espectrograma tras cargar
+            mostrar_onda(audio, sr, "Forma de Onda - Audio Original")  
+            mostrar_espectrograma(audio, sr, "Espectrograma - Audio Original")  
         except Exception as e:
             actualizar_estado(f"⚠ Error al cargar el archivo: {str(e)}", "red")
 
@@ -52,72 +52,98 @@ def iniciar_interfaz():
 
         filtro = filtro_var.get()
         ambiente = ambiente_var.get() if filtro == "Ambientes" else None
+        cutoff = None
+        intensidad = scale_intensidad.get()
 
         if filtro in ["Pasaaltos", "Pasabajos"]:
-            try:
-                cutoff = int(entry_frec.get())
-                if cutoff < 20 or cutoff > 20000:
-                    actualizar_estado("⚠ La frecuencia debe estar entre 20 Hz y 20,000 Hz.", "red")
-                    return
-            except ValueError:
-                actualizar_estado("⚠ Ingresa una frecuencia válida.", "red")
-                return
-        else:
-            cutoff = None
+            cutoff = scale_frec.get()
 
-        resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff, ambiente)
-        if resultado is not None:
-            guardar_audio(resultado, audio_data["sr"])
-            audio_data["audio"] = resultado
-            actualizar_estado("✅ Filtro aplicado con éxito 🎛", "green")
-            mostrar_onda(resultado, audio_data["sr"], f"Forma de Onda - {filtro}")  # 📊 Mostrar onda tras aplicar filtro
-            mostrar_espectrograma(resultado, audio_data["sr"], f"Espectrograma - {filtro}")  # 📊 Mostrar espectrograma tras aplicar filtro
+        if filtro in ["Eco", "Reverberación"]:
+            resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff, ambiente, intensidad)
+        elif filtro == "Ambientes":
+            resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff, ambiente)
+        else:
+            resultado = aplicar_filtro(audio_data["audio"], audio_data["sr"], filtro, cutoff)
+
+        if resultado is None:
+            actualizar_estado("⚠ El filtro no generó cambios en el audio.", "red")
+            return
+
+        guardar_audio(resultado, audio_data["sr"])
+        audio_data["audio"] = resultado
+        actualizar_estado("✅ Filtro aplicado con éxito 🎛", "green")
+        mostrar_onda(resultado, audio_data["sr"], f"Forma de Onda - {filtro}")  
+        mostrar_espectrograma(resultado, audio_data["sr"], f"Espectrograma - {filtro}")  
 
     def mostrar_onda(audio, sr, titulo):
         """Muestra la forma de onda del audio procesado en la interfaz."""
-        fig, ax = plt.subplots(figsize=(6, 3))
+        fig, ax = plt.subplots(figsize=(7, 3))
         tiempo = np.linspace(0, len(audio) / sr, num=len(audio))
-        ax.plot(tiempo, audio, color='purple')
-        ax.set_xlabel("Tiempo (s)")
-        ax.set_ylabel("Amplitud")
-        ax.set_title(titulo)
 
-        # Limpiar gráfico anterior y actualizar con el nuevo
+        ax.plot(tiempo, audio, color='purple')
+        ax.set_xlabel("Tiempo (s)", fontsize=10, fontweight='bold')
+        ax.set_ylabel("Amplitud", fontsize=10, fontweight='bold')
+        ax.set_title(titulo, fontsize=12, fontweight='bold')
+        ax.set_xlim([0, max(tiempo)])
+        ax.grid(True, linestyle='--', alpha=0.7)
+
+        plt.tight_layout()
+
         for widget in frame_onda.winfo_children():
             widget.destroy()
 
         canvas = FigureCanvasTkAgg(fig, master=frame_onda)
         canvas.draw()
         canvas.get_tk_widget().pack()
+        plt.close(fig)
 
     def mostrar_espectrograma(audio, sr, titulo):
         """Muestra el espectrograma del audio procesado en la interfaz."""
-        fig, ax = plt.subplots(figsize=(6, 3))
-        espectrograma = np.abs(librosa.stft(audio))  # Calcular el espectrograma con STFT
-        espectrograma_db = librosa.amplitude_to_db(espectrograma, ref=np.max)  # Convertir a dB
-        librosa.display.specshow(espectrograma_db, sr=sr, x_axis='time', y_axis='log', cmap='inferno', ax=ax)
-        ax.set_title(titulo)
-        plt.colorbar(librosa.display.specshow(espectrograma_db, sr=sr, x_axis='time', y_axis='log', cmap='inferno', ax=ax), ax=ax, format="%+2.0f dB")
+        fig, ax = plt.subplots(figsize=(7, 3))
+        espectrograma = np.abs(librosa.stft(audio))
+        espectrograma_db = librosa.amplitude_to_db(espectrograma, ref=np.max)
 
-        # Limpiar gráfico anterior y actualizar con el nuevo
+        mappable = librosa.display.specshow(espectrograma_db, sr=sr, x_axis='time', y_axis='log', cmap='inferno', ax=ax)
+        ax.set_title(titulo, fontsize=12, fontweight='bold')
+        ax.set_xlabel("Tiempo (s)", fontsize=10, fontweight='bold')
+        ax.set_ylabel("Frecuencia (Hz)", fontsize=10, fontweight='bold')
+        ax.set_xlim([0, len(audio) / sr])
+        plt.colorbar(mappable, ax=ax, format="%+2.0f dB")
+
+        plt.tight_layout()
+
         for widget in frame_espectrograma.winfo_children():
             widget.destroy()
 
         canvas = FigureCanvasTkAgg(fig, master=frame_espectrograma)
         canvas.draw()
         canvas.get_tk_widget().pack()
+        plt.close(fig)
 
-    # INTERFAZ VISUAL 🎛 (NO SE TOCÓ NADA AQUÍ)
     estado_label = tk.Label(root, text="🎤 Estado: Esperando acción...", font=("Arial", 12))
     estado_label.pack(pady=5)
+
+    tiempo_label = tk.Label(root, text="⏳ Esperando grabación...", font=("Arial", 10))
+    tiempo_label.pack(pady=5)
+
+    def actualizar_tiempo(texto=None, reset=False):
+        if reset:
+            tiempo_label.config(text="⏳ Esperando grabación...")
+        elif texto:
+            tiempo_label.config(text=texto)
+
+
+    def actualizar_botones(grabar=True, detener=False):
+        btn_grabar.config(state=tk.NORMAL if grabar else tk.DISABLED)
+        btn_detener.config(state=tk.NORMAL if detener else tk.DISABLED)
 
     btn_cargar = tk.Button(root, text="📂 Cargar Audio", command=cargar_audio_ui)
     btn_cargar.pack(pady=10)
 
-    btn_grabar = tk.Button(root, text="🎙️ Grabar Audio", command=grabar_audio)
+    btn_grabar = tk.Button(root, text="🎙️ Grabar Audio", command=lambda: grabar_audio(actualizar_estado, actualizar_tiempo, actualizar_botones))
     btn_grabar.pack(pady=10)
 
-    btn_detener = tk.Button(root, text="🛑 Detener Grabación", command=detener_grabacion, state=tk.DISABLED)
+    btn_detener = tk.Button(root, text="🛑 Detener Grabación", command=lambda: detener_grabacion(actualizar_estado, actualizar_botones, actualizar_tiempo), state=tk.DISABLED)
     btn_detener.pack(pady=10)
 
     filtro_var = tk.StringVar(value="Selecciona un filtro")
@@ -130,13 +156,15 @@ def iniciar_interfaz():
     menu_ambientes = tk.OptionMenu(root, ambiente_var, *opciones_ambientes)
     menu_ambientes.pack()
 
-    entry_frec = tk.Entry(root)
-    entry_frec.pack()
+    scale_frec = Scale(root, from_=20, to=20000, orient="horizontal", label="Frecuencia de Corte (Hz)")
+    scale_frec.pack()
+
+    scale_intensidad = Scale(root, from_=0.0, to=1.0, resolution=0.01, orient="horizontal", label="Intensidad del Efecto")
+    scale_intensidad.pack()
 
     btn_aplicar = tk.Button(root, text="🎛 Aplicar Filtro", command=aplicar_filtro_ui)
     btn_aplicar.pack(pady=10)
 
-    # Marcos para los gráficos de forma de onda y espectrograma
     frame_onda = tk.Frame(root)
     frame_onda.pack(pady=10)
 

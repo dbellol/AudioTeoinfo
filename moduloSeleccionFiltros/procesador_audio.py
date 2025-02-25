@@ -24,7 +24,7 @@ RESPUESTAS_IMPULSO = {
     "Cueva": os.path.join(IR_DIR, "ir_cueva.wav")
 }
 
-def aplicar_filtro(audio, sr, filtro, cutoff=None, ambiente=None):
+def aplicar_filtro(audio, sr, filtro, cutoff=None, ambiente=None, intensidad=0.5):
     """
     Aplica el filtro seleccionado o simula un ambiente específico.
     """
@@ -33,9 +33,9 @@ def aplicar_filtro(audio, sr, filtro, cutoff=None, ambiente=None):
     elif filtro == "Pasabajos":
         return butter_filter(audio, cutoff, sr, 'low')
     elif filtro == "Eco":
-        return aplicar_eco(audio, sr)
+        return aplicar_eco(audio, sr, intensidad)  # ✅ Ahora recibe intensidad correctamente
     elif filtro == "Reverberación":
-        return aplicar_reverberacion(audio, sr)
+        return aplicar_reverberacion(audio, sr, intensidad)  # ✅ Ahora recibe intensidad correctamente
     elif filtro == "Ambientes" and ambiente:
         return aplicar_filtro_ambiente(audio, sr, ambiente)
     else:
