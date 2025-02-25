@@ -1,11 +1,3 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from moduloCargarAudio.cargar_audio import cargar_audio
-from moduloCargarAudio.grabar_audio import grabar_audio, detener_grabacion
-from moduloSeleccionFiltros.procesador_audio import aplicar_filtro, guardar_audio
-import os
-import soundfile as sf  # Para leer el archivo de audio grabado
-
 import os
 import numpy as np
 import librosa
@@ -48,11 +40,12 @@ def iniciar_interfaz():
             audio_data["audio"], audio_data["sr"] = audio, sr
             actualizar_estado(f"✅ Audio cargado: {os.path.basename(filepath)}", "green")
             mostrar_onda(audio, sr, "Forma de Onda - Audio Original")  # 📊 Mostrar onda tras cargar
+            mostrar_espectrograma(audio, sr, "Espectrograma - Audio Original")  # 📊 Mostrar espectrograma tras cargar
         except Exception as e:
             actualizar_estado(f"⚠ Error al cargar el archivo: {str(e)}", "red")
 
     def aplicar_filtro_ui():
-        """Aplica el filtro seleccionado al audio cargado y muestra la forma de onda."""
+        """Aplica el filtro seleccionado al audio cargado y muestra la forma de onda y el espectrograma."""
         if audio_data["audio"] is None or audio_data["sr"] is None:
             actualizar_estado("⚠ No hay audio cargado.", "red")
             return
@@ -78,6 +71,7 @@ def iniciar_interfaz():
             audio_data["audio"] = resultado
             actualizar_estado("✅ Filtro aplicado con éxito 🎛", "green")
             mostrar_onda(resultado, audio_data["sr"], f"Forma de Onda - {filtro}")  # 📊 Mostrar onda tras aplicar filtro
+            mostrar_espectrograma(resultado, audio_data["sr"], f"Espectrograma - {filtro}")  # 📊 Mostrar espectrograma tras aplicar filtro
 
     def mostrar_onda(audio, sr, titulo):
         """Muestra la forma de onda del audio procesado en la interfaz."""
@@ -87,12 +81,29 @@ def iniciar_interfaz():
         ax.set_xlabel("Tiempo (s)")
         ax.set_ylabel("Amplitud")
         ax.set_title(titulo)
-        
+
         # Limpiar gráfico anterior y actualizar con el nuevo
         for widget in frame_onda.winfo_children():
             widget.destroy()
-        
+
         canvas = FigureCanvasTkAgg(fig, master=frame_onda)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+    def mostrar_espectrograma(audio, sr, titulo):
+        """Muestra el espectrograma del audio procesado en la interfaz."""
+        fig, ax = plt.subplots(figsize=(6, 3))
+        espectrograma = np.abs(librosa.stft(audio))  # Calcular el espectrograma con STFT
+        espectrograma_db = librosa.amplitude_to_db(espectrograma, ref=np.max)  # Convertir a dB
+        librosa.display.specshow(espectrograma_db, sr=sr, x_axis='time', y_axis='log', cmap='inferno', ax=ax)
+        ax.set_title(titulo)
+        plt.colorbar(librosa.display.specshow(espectrograma_db, sr=sr, x_axis='time', y_axis='log', cmap='inferno', ax=ax), ax=ax, format="%+2.0f dB")
+
+        # Limpiar gráfico anterior y actualizar con el nuevo
+        for widget in frame_espectrograma.winfo_children():
+            widget.destroy()
+
+        canvas = FigureCanvasTkAgg(fig, master=frame_espectrograma)
         canvas.draw()
         canvas.get_tk_widget().pack()
 
@@ -125,8 +136,11 @@ def iniciar_interfaz():
     btn_aplicar = tk.Button(root, text="🎛 Aplicar Filtro", command=aplicar_filtro_ui)
     btn_aplicar.pack(pady=10)
 
-    # Marco para la gráfica de la forma de onda
+    # Marcos para los gráficos de forma de onda y espectrograma
     frame_onda = tk.Frame(root)
     frame_onda.pack(pady=10)
+
+    frame_espectrograma = tk.Frame(root)
+    frame_espectrograma.pack(pady=10)
 
     root.mainloop()
